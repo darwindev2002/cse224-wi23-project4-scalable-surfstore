@@ -128,26 +128,16 @@ func (surfClient *RPCClient) UpdateFile(fileMetaData *FileMetaData, latestVersio
 	return conn.Close()
 }
 
-func (surfClient *RPCClient) GetBlockStoreAddr(blockStoreAddr *string) error {
-	// connect to the server
-	conn, err := grpc.Dial(surfClient.MetaStoreAddr, grpc.WithInsecure())
-	if err != nil {
-		return err
-	}
-	c := NewMetaStoreClient(conn)
+func (surfClient *RPCClient) GetBlockHashes(blockStoreAddr string, blockHashes *[]string) error {
+	panic("todo")
+}
 
-	// perform the call
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	res, err := c.GetBlockStoreAddr(ctx, &emptypb.Empty{})
-	if err != nil {
-		conn.Close()
-		return err
-	}
-	*blockStoreAddr = res.Addr
+func (surfClient *RPCClient) GetBlockStoreMap(blockHashesIn []string, blockStoreMap *map[string][]string) error {
+	panic("todo")
+}
 
-	// close the connection
-	return conn.Close()
+func (surfClient *RPCClient) GetBlockStoreAddrs(blockStoreAddrs *[]string) error {
+	panic("todo")
 }
 
 // This line guarantees all method for RPCClient are implemented

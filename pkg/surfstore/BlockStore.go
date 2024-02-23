@@ -4,6 +4,8 @@ import (
 	context "context"
 	"fmt"
 	"slices"
+
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 type BlockStore struct {
@@ -55,6 +57,11 @@ func (bs *BlockStore) HasBlocks(ctx context.Context, blockHashesIn *BlockHashes)
 	// TODO: optimizations
 
 	return &BlockHashes{Hashes: blockHashesOut}, nil
+}
+
+// Return a list containing all blockHashes on this block server
+func (bs *BlockStore) GetBlockHashes(ctx context.Context, _ *emptypb.Empty) (*BlockHashes, error) {
+	panic("todo")
 }
 
 // This line guarantees all method for BlockStore are implemented

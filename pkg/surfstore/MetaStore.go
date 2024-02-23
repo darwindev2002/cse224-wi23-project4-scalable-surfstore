@@ -9,8 +9,9 @@ import (
 )
 
 type MetaStore struct {
-	FileMetaMap    map[string]*FileMetaData // filename -> (filename, version, hashList)
-	BlockStoreAddr string
+	FileMetaMap        map[string]*FileMetaData // filename -> (filename, version, hashList)
+	BlockStoreAddrs    []string
+	ConsistentHashRing *ConsistentHashRing
 	UnimplementedMetaStoreServer
 }
 
@@ -46,16 +47,21 @@ func (m *MetaStore) UpdateFile(ctx context.Context, fileMetaData *FileMetaData) 
 	return &Version{Version: m.FileMetaMap[fileMetaData.Filename].Version}, nil
 }
 
-func (m *MetaStore) GetBlockStoreAddr(ctx context.Context, _ *emptypb.Empty) (*BlockStoreAddr, error) {
-	return &BlockStoreAddr{Addr: m.BlockStoreAddr}, nil
+func (m *MetaStore) GetBlockStoreMap(ctx context.Context, blockHashesIn *BlockHashes) (*BlockStoreMap, error) {
+	panic("todo")
+}
+
+func (m *MetaStore) GetBlockStoreAddrs(ctx context.Context, _ *emptypb.Empty) (*BlockStoreAddrs, error) {
+	panic("todo")
 }
 
 // This line guarantees all method for MetaStore are implemented
 var _ MetaStoreInterface = new(MetaStore)
 
-func NewMetaStore(blockStoreAddr string) *MetaStore {
+func NewMetaStore(blockStoreAddrs []string) *MetaStore {
 	return &MetaStore{
-		FileMetaMap:    map[string]*FileMetaData{},
-		BlockStoreAddr: blockStoreAddr,
+		FileMetaMap:        map[string]*FileMetaData{},
+		BlockStoreAddrs:    blockStoreAddrs,
+		ConsistentHashRing: NewConsistentHashRing(blockStoreAddrs),
 	}
 }
