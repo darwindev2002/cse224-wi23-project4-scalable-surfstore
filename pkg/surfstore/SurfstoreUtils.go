@@ -12,14 +12,6 @@ import (
 // Implement the logic for a client syncing with the server here.
 func ClientSync(client RPCClient) {
 
-	// var blockStoreAddr string
-	// err := client.GetBlockStoreAddr(&blockStoreAddr)
-
-	// if err != nil {
-	// 	log.Panicf("Error raised when getting BlockStore addr when sync'ing- %v\n", err)
-	// }
-	// log.Printf("Utils - ClientSync - Syncing with server at %v\n", blockStoreAddr)
-
 	// Open base dir
 	baseDirStats, err := os.Stat(client.BaseDir)
 	if err != nil || !baseDirStats.IsDir() {
@@ -263,10 +255,10 @@ func DownloadFile(client RPCClient, localMetaData *FileMetaData, remoteMetaData 
 // Download blocks from corresponding servers
 func DownloadFileHelper(client RPCClient, hashList []string) (map[string][]byte, error) {
 
-	var result map[string][]byte
+	result := make(map[string][]byte)
 
 	// Get corresponding BlockStoreMap for each blockHash
-	var blockStoreMap map[string][]string
+	blockStoreMap := make(map[string][]string)
 	err := client.GetBlockStoreMap(hashList, &blockStoreMap)
 	if err != nil {
 		log.Printf("Downlaod File - Error raised when getting corresponding BlockStoreMap - %v\n", err)
@@ -332,7 +324,7 @@ func UploadFile(client RPCClient, localMetaData *FileMetaData, remoteMetaData *F
 	defer file.Close()
 
 	// Get "hash => server" map for later PutBlock
-	hashToServerMap, err := UploadFileHelper(client, remoteMetaData.BlockHashList)
+	hashToServerMap, err := UploadFileHelper(client, localMetaData.BlockHashList)
 	if err != nil {
 		return err
 	}
@@ -356,6 +348,7 @@ func UploadFile(client RPCClient, localMetaData *FileMetaData, remoteMetaData *F
 		block := Block{BlockData: buf, BlockSize: int32(n)}
 
 		var succ bool
+		log.Printf("Utils - UploadFile - Uploading %v bytes with hash \"%v\" to server \"%v\"\n", n, GetBlockHashString(buf[:n]), hashToServerMap[GetBlockHashString(buf[:n])])
 		if err := client.PutBlock(&block, hashToServerMap[GetBlockHashString(buf[:n])], &succ); err != nil {
 			return err
 		}
@@ -376,10 +369,10 @@ func UploadFileHelper(client RPCClient, hashList []string) (map[string]string, e
 
 	log.Println("Upload File - Helper - Preparing \"hash => server\" map")
 
-	var result map[string]string
+	result := make(map[string]string)
 
 	// Get corresponding BlockStoreMap for each blockHash
-	var blockStoreMap map[string][]string
+	blockStoreMap := make(map[string][]string)
 	err := client.GetBlockStoreMap(hashList, &blockStoreMap)
 	if err != nil {
 		log.Printf("Upload File - Helper - Error raised when getting corresponding BlockStoreMap - %v\n", err)
@@ -388,17 +381,13 @@ func UploadFileHelper(client RPCClient, hashList []string) (map[string]string, e
 
 	// Create a map of "hash => server" for calling PutBlock later
 	for server, hashList := range blockStoreMap {
-		// For each server, get list of corresponding blocks
+		// For each server, assign hash => server entry
 		for _, h := range hashList {
-			// var tmpBlock Block
-			// client.GetBlock(h, server, &tmpBlock)
-			// if err != nil {
-			// 	log.Panicf("Download File - Helper - Error raised when downloading block - %v\n", err)
-			// }
-			// result[h] = tmpBlock.BlockData[:tmpBlock.BlockSize]
 			result[h] = server
 		}
 	}
+
+	log.Println("Upload File - Helper - \"hash => server\" map completed")
 
 	return result, nil
 }

@@ -18,7 +18,7 @@ func (c ConsistentHashRing) GetResponsibleServer(blockId string) string {
 	sort.Strings(serverHashes)
 	for _, serverHash := range serverHashes {
 		if serverHash > blockId {
-			return serverHash
+			return c.ServerMap[serverHash]
 		}
 	}
 	return c.ServerMap[serverHashes[0]]
