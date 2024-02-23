@@ -4,6 +4,7 @@ import (
 	context "context"
 	"fmt"
 	"slices"
+	"sort"
 
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -61,7 +62,12 @@ func (bs *BlockStore) HasBlocks(ctx context.Context, blockHashesIn *BlockHashes)
 
 // Return a list containing all blockHashes on this block server
 func (bs *BlockStore) GetBlockHashes(ctx context.Context, _ *emptypb.Empty) (*BlockHashes, error) {
-	panic("todo")
+	keys := make([]string, 0, len(bs.BlockMap))
+	for k := range bs.BlockMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return &BlockHashes{Hashes: keys}, nil
 }
 
 // This line guarantees all method for BlockStore are implemented
