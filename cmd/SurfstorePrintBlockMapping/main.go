@@ -2,6 +2,7 @@ package main
 
 import (
 	"cse224/proj4/pkg/surfstore"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -78,6 +79,14 @@ func PrintBlocksOnEachServer(client surfstore.RPCClient) {
 	if err != nil {
 		log.Fatal("[Surfstore RPCClient]:", "Error During Fetching All BlockStore Addresses ", err)
 	}
+	log.Printf("List of BlockStore servers: %v\n", allAddrs)
+
+	// Open file
+	logFile, err := os.OpenFile("hashToServerMapping.csv", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatalf("Create log file failed")
+	}
+	w := csv.NewWriter(logFile)
 
 	result := "{"
 	for _, addr := range allAddrs {
@@ -89,12 +98,18 @@ func PrintBlocksOnEachServer(client surfstore.RPCClient) {
 
 		for _, hash := range hashes {
 			result += "{" + hash + "," + addr + "},"
+			if err := w.Write([]string{hash, addr}); err != nil {
+				log.Fatalf("Error when exporting mappings to csv file\n")
+			}
 		}
 	}
+	log.Printf("Finish exporting mappings to \"%v\"", "hashToServerMapping.txt")
+
 	if len(result) == 1 {
 		result = "{}"
 	} else {
 		result = result[:len(result)-1] + "}"
 	}
 	fmt.Println(result)
+
 }
