@@ -1,185 +1,158 @@
-# Surfstore
+# Scalable Surfstore
 
-This is the starter code for the SurfStore project
+## Extend your surfstore project
+1. Make a copy of your solution if you want to:
+```shell
+mkdir proj4
+cp -r proj3/* proj4
+cd proj4
+```
 
-Before you get started, make sure you understand the following 2 things about Go. (These will also be covered in class and in discussions)
-1. Interfaces: They are named collections of method signatures. Here are some good resources to understand interfaces in Go:
-    a. https://gobyexample.com/interfaces
-    b. https://jordanorelli.com/post/32665860244/how-to-use-interfaces-in-go
+2. copy over consistent hashing files and new new .proto service defination
+```shell
+mkdir cmd/SurfstorePrintBlockMapping
+cp /yourPath/starter-code/cmd/SurfstorePrintBlockMapping/main.go cmd/SurfstorePrintBlockMapping/
+cp /yourPath/starter-code/pkg/surfstore/ConsistentHashRing.go pkg/surfstore
+cp /yourPath/starter-code/pkg/surfstore/SurfStore.proto pkg/surfstore
+cp /yourPath/starter-code/pkg/surfstore/SurfstoreInterfaces.go pkg/surfstore
+```
 
-2. gRPC: You should know how to write gRPC servers and clients in Go. The [gRPC official documentation](https://grpc.io/docs/languages/go/basics/) of the *grpc* is a good resource.
+4. manually change MetaStore.go
+```diff
+type MetaStore struct {
+	FileMetaMap    map[string]*FileMetaData
+-	BlockStoreAddr string
++	BlockStoreAddrs    []string
++	ConsistentHashRing *ConsistentHashRing
+	UnimplementedMetaStoreServer
+}
+
+-func (m *MetaStore) GetBlockStoreAddr(ctx context.Context, _ *emptypb.Empty) (*BlockStoreAddr, error) {
+-	panic("todo")
+-}
++func (m *MetaStore) GetBlockStoreMap(ctx context.Context, blockHashesIn *BlockHashes) (*BlockStoreMap, error) {
++	panic("todo")
++}
++
++func (m *MetaStore) GetBlockStoreAddrs(ctx context.Context, _ *emptypb.Empty) (*BlockStoreAddrs, error) {
++	panic("todo")
++}
+...
+
+-func NewMetaStore(blockStoreAddr string) *MetaStore {
++func NewMetaStore(blockStoreAddrs []string) *MetaStore {
+	return &MetaStore{
+		FileMetaMap:    map[string]*FileMetaData{},
+-		BlockStoreAddr: blockStoreAddr,
++		BlockStoreAddrs:    blockStoreAddrs,
++		ConsistentHashRing: NewConsistentHashRing(blockStoreAddrs),
+	}
+}
+```
+
+5. add the following function in BlockStore.go
+```diff
++// Return a list containing all blockHashes on this block server
++func (bs *BlockStore) GetBlockHashes(ctx context.Context, _ *emptypb.Empty) (*BlockHashes, error) {
++	panic("todo")
++}
+```
+
+6. extend SurfstoreRPCClient.go 
+```diff
++func (surfClient *RPCClient) GetBlockHashes(blockStoreAddr string, blockHashes *[]string) error {
++	panic("todo")
++}
+...
+
+-func (surfClient *RPCClient) GetBlockStoreAddr(blockStoreAddr *string) error {
+-	panic("todo")
+-}
++func (surfClient *RPCClient) GetBlockStoreMap(blockHashesIn []string, blockStoreMap *map[string][]string) error {
++	panic("todo")
++}
++
++func (surfClient *RPCClient) GetBlockStoreAddrs(blockStoreAddrs *[]string) error {
++	panic("todo")
++}
+```
+
+7. change your code in `cmd/SurfstoreServerExec/main.go` to handle multiple tail aruguments. In previous project, we only have one tail argument indicating the single block server's address. Now we want to handle multiple arguments to configure multiple block servers. 
+
+
 
 ## Protocol buffers
 
-The starter code defines the following protocol buffer message type in `SurfStore.proto`:
-
-```
-message Block {
-    bytes blockData = 1;
-    int32 blockSize = 2;
-}
-
-message FileMetaData {
-    string filename = 1;
-    int32 version = 2;
-    repeated string blockHashList = 3;
-}
-...
-```
-
-`SurfStore.proto` also defines the gRPC service:
-```
+<!-- ```diff
 service BlockStore {
     rpc GetBlock (BlockHash) returns (Block) {}
     rpc PutBlock (Block) returns (Success) {}
     rpc HasBlocks (BlockHashes) returns (BlockHashes) {}
++   rpc GetBlockHashes (google.protobuf.Empty) returns (BlockHashes) {}
 }
 
 service MetaStore {
     rpc GetFileInfoMap(google.protobuf.Empty) returns (FileInfoMap) {}
     rpc UpdateFile(FileMetaData) returns (Version) {}
-    rpc GetBlockStoreAddr(google.protobuf.Empty) returns (BlockStoreAddr) {}
+-   rpc GetBlockStoreAddr(google.protobuf.Empty) returns (BlockStoreAddr) {}
++   rpc GetBlockStoreMap(BlockHashes) returns (BlockStoreMap) {}
++   rpc GetBlockStoreAddrs(google.protobuf.Empty) returns (BlockStoreAddrs) {}
 }
-```
+``` -->
 
-**You need to generate the gRPC client and server interfaces from our .proto service definition.** We do this using the protocol buffer compiler protoc with a special gRPC Go plugin (The [gRPC official documentation](https://grpc.io/docs/languages/go/basics/) introduces how to install the protocol compiler plugins for Go).
+The gRPC service in `SurfStore.proto` haven been changed. **You need to regenerate the gRPC client and server interfaces from our .proto service definition.** We do this using the protocol buffer compiler protoc with a special gRPC Go plugin (The [gRPC official documentation](https://grpc.io/docs/languages/go/basics/) introduces how to install the protocol compiler plugins for Go).
 
 ```shell
 protoc --proto_path=. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/surfstore/SurfStore.proto
 ```
 
-Running this command generates the following files in the `pkg/surfstore` directory:
-- `SurfStore.pb.go`, which contains all the protocol buffer code to populate, serialize, and retrieve request and response message types.
-- `SurfStore_grpc.pb.go`, which contains the following:
-	- An interface type (or stub) for clients to call with the methods defined in the SurfStore service.
-	- An interface type for servers to implement, also with the methods defined in the SurfStore service.
+Running this command generates `SurfStore.pb.go` and `SurfStore_grpc.pb.go` in the `pkg/surfstore` directory.
 
-## Surfstore Interface
-`SurfstoreInterfaces.go` also contains interfaces for the BlockStore and the MetadataStore:
 
-```go
-type MetaStoreInterface interface {
-	// Retrieves the server's FileInfoMap
-	GetFileInfoMap(ctx context.Context, _ *emptypb.Empty) (*FileInfoMap, error)
 
-	// Update a file's fileinfo entry
-	UpdateFile(ctx context.Context, fileMetaData *FileMetaData) (*Version, error)
-
-	// Get the the BlockStore address
-	GetBlockStoreAddr(ctx context.Context, _ *emptypb.Empty) (*BlockStoreAddr, error)
-}
-
-type BlockStoreInterface interface {
-	// Get a block based on blockhash
-	GetBlock(ctx context.Context, blockHash *BlockHash) (*Block, error)
-
-	// Put a block
-	PutBlock(ctx context.Context, block *Block) (*Success, error)
-
-	// Given a list of hashes “in”, returns a list containing the
-	// subset of in that are stored in the key-value store
-	HasBlocks(ctx context.Context, blockHashesIn *BlockHashes) (*BlockHashes, error)
-}
-```
-
-## Implementation
-### Server
-`BlockStore.go` provides a skeleton implementation of the `BlockStoreInterface` and `MetaStore.go` provides a skeleton implementation of the `MetaStoreInterface` 
-**You must implement the methods in these 2 files which have `panic("todo")` as their body.**
-
-`cmd/SurfstoreServerExec/main.go` also has a method `startServer` **which you must implement**. Depending on the service type specified, it should register a `MetaStore`, `BlockStore`, or `Both` and start listening for connections from clients.
-
-### Client
-`SurfstoreRPCClient.go` provides the gRPC client stub for the surfstore gRPC server. **You must implement the methods in this file which have `panic("todo")` as their body.** (Hint: one of them has been implemented for you)
-
-`SurfstoreUtils.go` also has the following method which **you need to implement** for the sync logic of clients:
-```go
-/*
-Implement the logic for a client syncing with the server here.
-*/
-func ClientSync(client RPCClient) {
-	panic("todo")
-}
-```
 ## Usage
 1. Run your server using this:
 ```shell
 go run cmd/SurfstoreServerExec/main.go -s <service> -p <port> -l -d (BlockStoreAddr*)
 ```
-Here, `service` should be one of three values: meta, block, or both. This is used to specify the service provided by the server. `port` defines the port number that the server listens to (default=8080). `-l` configures the server to only listen on localhost. `-d` configures the server to output log statements. Lastly, (BlockStoreAddr\*) is the BlockStore address that the server is configured with. If `service=both` then the BlockStoreAddr should be the `ip:port` of this server.
+Here, `service` should be one of three values: meta, block, or both. This is used to specify the service provided by the server. `port` defines the port number that the server listens to (default=8080). `-l` configures the server to only listen on localhost. `-d` configures the server to output log statements. Lastly, (BlockStoreAddr\*) are the BlockStore addresses that the server is configured with. 
 
 2. Run your client using this:
 ```shell
 go run cmd/SurfstoreClientExec/main.go -d <meta_addr:port> <base_dir> <block_size>
 ```
 
-## Examples:
+3. Print block mapping using this:
 ```shell
-go run cmd/SurfstoreServerExec/main.go -s both -p 8081 -l localhost:8081
+go run cmd/SurfstorePrintBlockMapping/main.go -d <meta_addr:port> <base_dir> <block_size>
 ```
-This starts a server that listens only to localhost on port 8081 and services both the BlockStore and MetaStore interface.
 
+## Examples:
+
+1.
 ```shell
 Run the commands below on separate terminals (or nodes)
 > go run cmd/SurfstoreServerExec/main.go -s block -p 8081 -l
-> go run cmd/SurfstoreServerExec/main.go -s meta -l localhost:8081
+> go run cmd/SurfstoreServerExec/main.go -s block -p 8082 -l
+> go run cmd/SurfstoreServerExec/main.go -s meta -l localhost:8081 localhost:8082
 ```
-The first line starts a server that services only the BlockStore interface and listens only to localhost on port 8081. The second line starts a server that services only the MetaStore interface, listens only to localhost on port 8080, and references the BlockStore we created as the underlying BlockStore. (Note: if these are on separate nodes, then you should use the public ip address and remove `-l`)
+The first two lines start two servers that services BlockStore interface and listens to localhost on port 8081 and 8082. The third line starts a server that services MetaStore interface, listens to localhost on port 8080, and references the BlockStore we created as the underlying BlockStore. (Note: if these are on separate nodes, then you should use the public ip address and remove `-l`)
 
-3. From a new terminal (or a new node), run the client using the script provided in the starter code (if using a new node, build using step 1 first). Use a base directory with some files in it.
+2. From a new terminal (or a new node), run the client using the script provided in the starter code (if using a new node, build using step 1 first). Use a base directory with some files in it.
 ```shell
 > mkdir dataA
 > cp ~/pic.jpg dataA/ 
-> go run cmd/SurfstoreClientExec/main.go server_addr:port dataA 4096
+> go run cmd/SurfstoreClientExec/main.go localhost:8080 dataA 4096
 ```
-This would sync pic.jpg to the server hosted on `server_addr:port`, using `dataA` as the base directory, with a block size of 4096 bytes.
+This would sync pic.jpg to the server hosted on localhost:8080, using `dataA` as the base directory, with a block size of 4096 bytes.
 
-4. From another terminal (or a new node), run the client to sync with the server. (if using a new node, build using step 1 first)
+3. From another terminal (or a new node), run PrintBlockMapping to check which blocks a block server has. 
 ```shell
-> mkdir dataB
-> go run cmd/SurfstoreClientExec/main.go server_addr:port dataB 4096
-> ls dataB/
-pic.jpg index.txt
+> go run cmd/SurfstorePrintBlockMapping/main.go localhost:8080 dataB 4096
 ```
-We observe that pic.jpg has been synced to this client.
-
-## Makefile
-We also provide a make file for you to run the BlockStore and MetaStore servers.
-1. Run both BlockStore and MetaStore servers (**listens to localhost on port 8081**):
-```shell
-make run-both
-```
-
-2. Run BlockStore server (**listens to localhost on port 8081**):
-```shell
-make run-blockstore
-```
-
-3. Run MetaStore server (**listens to localhost on port 8080**):
-```shell
-make run-metastore
-```
+The output willl be a map from block hashes to server names. 
 
 ## Testing 
+We will conduct similar tests to the previous project, but this time on multiple servers. Make sure your surfstore supports multiple servers, and ClientSync works as expected. In addition, we will check your block mapping by calling SurfstorePrintBlockMapping. 
+
 On gradescope, only a subset of test cases will be visible, so we highly encourage you to come up with different scenarios like the one described above. You can then match the outcome of your implementation to the expected output based on the theory provided in the writeup.
-
-
-## Testing on local
-We use "clientA" and "clientB" for two distinct base dir for the two clients
-
-Server
-```shell
-go run cmd/SurfstoreServerExec/main.go -s both -p 8080 -l -d
-```
-
-Client A
-```shell
-go run cmd/SurfstoreClientExec/main.go -d localhost:8080 clientA 4096
-```
-
-Client B
-```shell
-go run cmd/SurfstoreClientExec/main.go -d localhost:8080 clientB 4096
-```
-
-Sample file ```sample_success.txt``` has 4096+1063 bytes
