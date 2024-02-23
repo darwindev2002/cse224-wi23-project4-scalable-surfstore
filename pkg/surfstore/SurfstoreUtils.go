@@ -12,13 +12,13 @@ import (
 // Implement the logic for a client syncing with the server here.
 func ClientSync(client RPCClient) {
 
-	var blockStoreAddr string
-	panic("TODO - Update to consistent hashring version")
-	err := client.GetBlockStoreAddr(&blockStoreAddr)
-	if err != nil {
-		log.Panicf("Error raised when getting BlockStore addr when sync'ing- %v\n", err)
-	}
-	log.Printf("Utils - ClientSync - Syncing with server at %v\n", blockStoreAddr)
+	// var blockStoreAddr string
+	// err := client.GetBlockStoreAddr(&blockStoreAddr)
+
+	// if err != nil {
+	// 	log.Panicf("Error raised when getting BlockStore addr when sync'ing- %v\n", err)
+	// }
+	// log.Printf("Utils - ClientSync - Syncing with server at %v\n", blockStoreAddr)
 
 	// Open base dir
 	baseDirStats, err := os.Stat(client.BaseDir)
@@ -99,14 +99,14 @@ func ClientSync(client RPCClient) {
 		if localMetaData, ok := localIndex[fileName]; !ok {
 			// File not exist at local base dir
 			localIndex[fileName] = &FileMetaData{}
-			DownloadFile(client, blockStoreAddr, localIndex[fileName], remoteMetaData)
+			DownloadFile(client, localIndex[fileName], remoteMetaData)
 		} else {
 			// File exist at local base dir,
 			// however only need download only if remote ver >= local ver
 			// Example: local modified (ver 3 -> 4), but remote ver 4 (someone sync-ed update)
 			// By the rules, we download remote content and overwrite local data
 			if remoteMetaData.Version >= localMetaData.Version {
-				DownloadFile(client, blockStoreAddr, localMetaData, remoteMetaData)
+				DownloadFile(client, localMetaData, remoteMetaData)
 			}
 		}
 	}
@@ -114,7 +114,7 @@ func ClientSync(client RPCClient) {
 	for fileName, localMetaData := range localIndex {
 		if remoteMetaData, ok := remoteIndex[fileName]; !ok {
 			// File not exist at remote
-			e := UploadFile(client, blockStoreAddr, localMetaData, &FileMetaData{Version: 0})
+			e := UploadFile(client, localMetaData, &FileMetaData{Version: 0})
 			if e != nil {
 				log.Panicf("Error raised when sync'ing - %v\n", err)
 			}
@@ -122,7 +122,7 @@ func ClientSync(client RPCClient) {
 			// File exist at remote,
 			// however only update if local has newer ver # than remote ver #
 			if localMetaData.Version >= remoteMetaData.Version {
-				e := UploadFile(client, blockStoreAddr, localMetaData, remoteMetaData)
+				e := UploadFile(client, localMetaData, remoteMetaData)
 				if e != nil {
 					log.Panicf("Error raised when sync'ing - %v\n", err)
 				}
@@ -190,7 +190,7 @@ func CheckValidFilename(fileName string) bool {
 }
 
 // Download file from remote
-func DownloadFile(client RPCClient, blockStoreAddr string, localMetaData *FileMetaData, remoteMetaData *FileMetaData) error {
+func DownloadFile(client RPCClient, localMetaData *FileMetaData, remoteMetaData *FileMetaData) error {
 
 	path := ConcatPath(client.BaseDir, remoteMetaData.Filename)
 
@@ -239,15 +239,15 @@ func DownloadFile(client RPCClient, blockStoreAddr string, localMetaData *FileMe
 	}
 	defer newLocalFile.Close()
 
+	downloadedData, err := DownloadFileHelper(client, remoteMetaData.BlockHashList)
+	if err != nil {
+		return err
+	}
+
 	// Download and write to file
 	writer := bufio.NewWriter(newLocalFile)
-	var tmpBlock Block
 	for _, h := range remoteMetaData.BlockHashList {
-		err = client.GetBlock(h, blockStoreAddr, &tmpBlock)
-		if err != nil {
-			log.Panicf("Error raised when sync'ing - %v\n", err)
-		}
-		writer.Write(tmpBlock.BlockData[:tmpBlock.BlockSize])
+		writer.Write(downloadedData[h])
 	}
 	writer.Flush()
 
@@ -258,6 +258,35 @@ func DownloadFile(client RPCClient, blockStoreAddr string, localMetaData *FileMe
 	}
 
 	return nil
+}
+
+// Download blocks from corresponding servers
+func DownloadFileHelper(client RPCClient, hashList []string) (map[string][]byte, error) {
+
+	var result map[string][]byte
+
+	// Get corresponding BlockStoreMap for each blockHash
+	var blockStoreMap map[string][]string
+	err := client.GetBlockStoreMap(hashList, &blockStoreMap)
+	if err != nil {
+		log.Printf("Downlaod File - Error raised when getting corresponding BlockStoreMap - %v\n", err)
+		return result, err
+	}
+
+	for server, hashList := range blockStoreMap {
+		// For each server, get list of corresponding blocks
+		for _, h := range hashList {
+			var tmpBlock Block
+			client.GetBlock(h, server, &tmpBlock)
+			if err != nil {
+				log.Panicf("Download File - Helper - Error raised when downloading block - %v\n", err)
+			}
+			result[h] = tmpBlock.BlockData[:tmpBlock.BlockSize]
+		}
+		log.Printf("Download File - Helper - Downloaded %v files from BlockStore server %v\n", len(hashList), server)
+	}
+
+	return result, nil
 }
 
 // Check deleted file
@@ -272,7 +301,7 @@ func IsDeletedFile(meta *FileMetaData) bool {
 }
 
 // Upload file to remote
-func UploadFile(client RPCClient, blockStoreAddr string, localMetaData *FileMetaData, remoteMetaData *FileMetaData) error {
+func UploadFile(client RPCClient, localMetaData *FileMetaData, remoteMetaData *FileMetaData) error {
 
 	path := ConcatPath(client.BaseDir, localMetaData.Filename)
 
@@ -302,6 +331,12 @@ func UploadFile(client RPCClient, blockStoreAddr string, localMetaData *FileMeta
 	}
 	defer file.Close()
 
+	// Get "hash => server" map for later PutBlock
+	hashToServerMap, err := UploadFileHelper(client, remoteMetaData.BlockHashList)
+	if err != nil {
+		return err
+	}
+
 	// Generate byte blocks and hashes
 	// log.Println("here uploading")
 	for {
@@ -321,7 +356,7 @@ func UploadFile(client RPCClient, blockStoreAddr string, localMetaData *FileMeta
 		block := Block{BlockData: buf, BlockSize: int32(n)}
 
 		var succ bool
-		if err := client.PutBlock(&block, blockStoreAddr, &succ); err != nil {
+		if err := client.PutBlock(&block, hashToServerMap[GetBlockHashString(buf[:n])], &succ); err != nil {
 			return err
 		}
 	}
@@ -334,6 +369,38 @@ func UploadFile(client RPCClient, blockStoreAddr string, localMetaData *FileMeta
 	localMetaData.Version = latestVersion
 	return nil
 
+}
+
+// Compute the corresponding servers for the blocks
+func UploadFileHelper(client RPCClient, hashList []string) (map[string]string, error) {
+
+	log.Println("Upload File - Helper - Preparing \"hash => server\" map")
+
+	var result map[string]string
+
+	// Get corresponding BlockStoreMap for each blockHash
+	var blockStoreMap map[string][]string
+	err := client.GetBlockStoreMap(hashList, &blockStoreMap)
+	if err != nil {
+		log.Printf("Upload File - Helper - Error raised when getting corresponding BlockStoreMap - %v\n", err)
+		return result, err
+	}
+
+	// Create a map of "hash => server" for calling PutBlock later
+	for server, hashList := range blockStoreMap {
+		// For each server, get list of corresponding blocks
+		for _, h := range hashList {
+			// var tmpBlock Block
+			// client.GetBlock(h, server, &tmpBlock)
+			// if err != nil {
+			// 	log.Panicf("Download File - Helper - Error raised when downloading block - %v\n", err)
+			// }
+			// result[h] = tmpBlock.BlockData[:tmpBlock.BlockSize]
+			result[h] = server
+		}
+	}
+
+	return result, nil
 }
 
 // Debug use: check file size
