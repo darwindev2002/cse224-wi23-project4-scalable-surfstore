@@ -13,6 +13,7 @@ import (
 func ClientSync(client RPCClient) {
 
 	var blockStoreAddr string
+	panic("TODO - Update to consistent hashring version")
 	err := client.GetBlockStoreAddr(&blockStoreAddr)
 	if err != nil {
 		log.Panicf("Error raised when getting BlockStore addr when sync'ing- %v\n", err)

@@ -7,7 +7,7 @@ import (
 )
 
 type ConsistentHashRing struct {
-	ServerMap map[string]string
+	ServerMap map[string]string // hashed serverAddr -> serverAddr
 }
 
 func (c ConsistentHashRing) GetResponsibleServer(blockId string) string {

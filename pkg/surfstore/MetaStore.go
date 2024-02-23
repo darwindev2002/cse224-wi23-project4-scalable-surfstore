@@ -48,11 +48,35 @@ func (m *MetaStore) UpdateFile(ctx context.Context, fileMetaData *FileMetaData) 
 }
 
 func (m *MetaStore) GetBlockStoreMap(ctx context.Context, blockHashesIn *BlockHashes) (*BlockStoreMap, error) {
-	panic("todo")
+
+	// Create empty BlockStoreMap result
+	result := &BlockStoreMap{}
+	result.BlockStoreMap = make(map[string]*BlockHashes)
+	for _, addr := range m.BlockStoreAddrs {
+		result.BlockStoreMap[addr] = &BlockHashes{Hashes: []string{}}
+	}
+
+	// Loop through all hashes
+	for _, blockHash := range blockHashesIn.Hashes {
+
+		// Get the responsible server for blockHash
+		theServer := m.ConsistentHashRing.GetResponsibleServer(blockHash)
+
+		// Insert into the list for the corresponding server
+		if _, ok := result.BlockStoreMap[theServer]; !ok {
+			log.Println("MetaStore - GetBlockStoreMap - Failed when getting corresponding mapping")
+			return result, nil
+		} else {
+			result.BlockStoreMap[theServer].Hashes = append(result.BlockStoreMap[theServer].Hashes, blockHash)
+		}
+
+	}
+
+	return result, nil
 }
 
 func (m *MetaStore) GetBlockStoreAddrs(ctx context.Context, _ *emptypb.Empty) (*BlockStoreAddrs, error) {
-	panic("todo")
+	return &BlockStoreAddrs{BlockStoreAddrs: m.BlockStoreAddrs}, nil
 }
 
 // This line guarantees all method for MetaStore are implemented
