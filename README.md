@@ -156,3 +156,10 @@ The output willl be a map from block hashes to server names.
 We will conduct similar tests to the previous project, but this time on multiple servers. Make sure your surfstore supports multiple servers, and ClientSync works as expected. In addition, we will check your block mapping by calling SurfstorePrintBlockMapping. 
 
 On gradescope, only a subset of test cases will be visible, so we highly encourage you to come up with different scenarios like the one described above. You can then match the outcome of your implementation to the expected output based on the theory provided in the writeup.
+
+## Sample Files for Testing
+- ```sampleFiles/sample_success.txt``` has 4096+1063 bytes
+- ```sampleFiles/largefile``` has 1048580 bytes, generated as follows:
+     ```bash
+     > head -c 1048580 </dev/urandom >sampleFiles/largefile
+     ```
