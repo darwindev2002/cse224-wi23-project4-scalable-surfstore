@@ -27,7 +27,7 @@ func (m *MetaStore) UpdateFile(ctx context.Context, fileMetaData *FileMetaData) 
 			Version:       fileMetaData.Version,
 			BlockHashList: fileMetaData.BlockHashList,
 		}
-		log.Println("MetaStore - Update file returned succecss case 1")
+		// log.Println("MetaStore - Update file returned succecss case 1")
 		return &Version{Version: fileMetaData.Version}, nil
 	}
 
@@ -35,7 +35,7 @@ func (m *MetaStore) UpdateFile(ctx context.Context, fileMetaData *FileMetaData) 
 		(fileMetaData.Version == oldMeta.Version &&
 			!IsEqualHashLists(fileMetaData.BlockHashList, oldMeta.BlockHashList)) {
 		// Either modified, or not modified
-		log.Println("MetaStore - Update file returned error case 2")
+		// log.Println("MetaStore - Update file returned error case 2")
 		return &Version{Version: -1}, fmt.Errorf("version is too old, received version = %v, current remote version %v", fileMetaData.Version, oldMeta.Version)
 	}
 
@@ -43,7 +43,7 @@ func (m *MetaStore) UpdateFile(ctx context.Context, fileMetaData *FileMetaData) 
 	m.FileMetaMap[fileMetaData.Filename].BlockHashList = fileMetaData.BlockHashList
 	(m.FileMetaMap[fileMetaData.Filename].Version)++
 
-	log.Println("MetaStore - Update file returned success case 3")
+	// log.Println("MetaStore - Update file returned success case 3")
 	return &Version{Version: m.FileMetaMap[fileMetaData.Filename].Version}, nil
 }
 
