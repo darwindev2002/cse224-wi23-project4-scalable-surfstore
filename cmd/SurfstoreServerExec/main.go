@@ -44,9 +44,9 @@ func main() {
 
 	// Use tail arguments to hold BlockStore address
 	args := flag.Args()
-	blockStoreAddr := ""
-	if len(args) == 1 {
-		blockStoreAddr = args[0]
+	blockStoreAddrs := []string{}
+	if len(args) >= 1 {
+		blockStoreAddrs = args
 	}
 
 	// Valid service type argument
@@ -68,22 +68,22 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	log.Fatal(startServer(addr, strings.ToLower(*service), blockStoreAddr))
+	log.Fatal(startServer(addr, strings.ToLower(*service), blockStoreAddrs))
 }
 
-func startServer(hostAddr string, serviceType string, blockStoreAddr string) error {
+func startServer(hostAddr string, serviceType string, blockStoreAddrs []string) error {
 
 	// Create a grpc server
 	grpcServer := grpc.NewServer()
 
 	// Register rpc services
 	if serviceType == "meta" {
-		surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(blockStoreAddr))
+		surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(blockStoreAddrs))
 	} else if serviceType == "block" {
 		surfstore.RegisterBlockStoreServer(grpcServer, surfstore.NewBlockStore())
 	} else { // serviceType == "both"
 		surfstore.RegisterBlockStoreServer(grpcServer, surfstore.NewBlockStore())
-		surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(hostAddr))
+		surfstore.RegisterMetaStoreServer(grpcServer, surfstore.NewMetaStore(blockStoreAddrs))
 	}
 
 	// Start listening on hostAddr
